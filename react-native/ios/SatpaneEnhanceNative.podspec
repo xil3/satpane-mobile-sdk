@@ -12,7 +12,7 @@ Pod::Spec.new do |s|
   s.homepage       = package['homepage']
   s.platforms      = { :ios => '16.0' }
   s.swift_version  = '5.9'
-  s.source         = { git: 'https://github.com/xil3/satpane-mobile.git', tag: "v#{s.version}" }
+  s.source         = { git: 'https://github.com/xil3/satpane-mobile-sdk.git', tag: "v#{s.version}" }
   s.static_framework = true
 
   s.dependency 'ExpoModulesCore'

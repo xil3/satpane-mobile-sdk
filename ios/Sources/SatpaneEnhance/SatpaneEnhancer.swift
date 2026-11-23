@@ -15,7 +15,7 @@ import Foundation
 /// Listeners are called on the main queue. Network, model and file work run on one background queue.
 public final class SatpaneEnhancer {
   public struct Config {
-    /// Your Satpane API key (restrict it to your app in the Satpane dashboard).
+    /// Your Satpane API key. Keys in apps can be copied out of them: give this one its own monthly limit in the dashboard.
     public var key: String
     public var api = "https://api.satpane.com"
     public var layer = "true-color"

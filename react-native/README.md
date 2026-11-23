@@ -35,5 +35,5 @@ const sharper = useSatpaneEnhance(satelliteShown ? { key: SATPANE_KEY } : null);
 `state`: `available` (offer the switch), `enabled` (the saved choice), `tileUrl` (a `file://` template;
 it changes when new tiles are written so the map redraws), `slow`, `message`, `backend`.
 
-Docs: https://satpane.com/docs#enhance-react-native · Source: https://github.com/xil3/satpane-mobile
+Docs: https://satpane.com/docs#enhance-react-native · Source: https://github.com/xil3/satpane-mobile-sdk
 (this package bundles the Android and iOS SDKs' sources). MIT.

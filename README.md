@@ -7,7 +7,7 @@ detail. Each area is enhanced once and kept on the device.
 | | Package | Runs the model with |
 |---|---|---|
 | Android (Kotlin) | `com.satpane:enhance` from `https://satpane.com/maven` | ONNX Runtime (CPU, XNNPACK) |
-| iOS (Swift) | Swift package `https://github.com/xil3/satpane-mobile` | Core ML (part of iOS; no other dependencies) |
+| iOS (Swift) | Swift package `https://github.com/xil3/satpane-mobile-sdk` | Core ML (part of iOS; no other dependencies) |
 | React Native / Expo | `@satpane/enhance-native` on npm | both of the above |
 | Web | [`@satpane/enhance`](https://www.npmjs.com/package/@satpane/enhance) on npm | ONNX Runtime Web (WebGPU / WASM) |
 

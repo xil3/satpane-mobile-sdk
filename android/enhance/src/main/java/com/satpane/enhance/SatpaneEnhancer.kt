@@ -29,7 +29,7 @@ import java.util.concurrent.Executors
 class SatpaneEnhancer(context: Context, val config: Config) : Closeable {
 
   data class Config(
-    /** Your Satpane API key (restrict it to your app in the Satpane dashboard). */
+    /** Your Satpane API key. Keys in apps can be copied out of them: give this one its own monthly limit in the dashboard. */
     val key: String,
     val api: String = "https://api.satpane.com",
     val layer: String = "true-color",

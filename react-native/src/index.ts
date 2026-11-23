@@ -9,7 +9,7 @@ import { useCallback, useEffect, useState } from "react";
 import { requireOptionalNativeModule, type EventSubscription } from "expo-modules-core";
 
 export interface Config {
-  /** Your Satpane API key (restrict it to your app's bundle id / package name in the dashboard). */
+  /** Your Satpane API key. Keys in apps can be copied out of them: give this one its own monthly limit in the dashboard. */
   key: string;
   /** Default https://api.satpane.com */
   api?: string;
