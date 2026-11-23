@@ -1,0 +1,11 @@
+.build/
+.swiftpm/
+*.xcodeproj/xcuserdata/
+DerivedData/
+android/.gradle/
+android/build/
+android/enhance/build/
+android/local.properties
+.idea/
+*.iml
+.DS_Store

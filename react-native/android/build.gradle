@@ -1,0 +1,21 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.satpane'
+version = '0.1.0'
+
+android {
+  namespace "com.satpane.enhancenative"
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+  }
+}
+
+dependencies {
+  // ONNX Runtime (Microsoft, MIT): runs the model on the phone's CPU with XNNPACK. The Satpane SDK's own
+  // sources (com.satpane.enhance) are copied into src/ when this package is packed.
+  implementation 'com.microsoft.onnxruntime:onnxruntime-android:1.30.0'
+}

@@ -1,0 +1,34 @@
+# Satpane mobile SDKs: build and test on every push. Nothing is signed, published or delivered here
+# (Swift Package Manager uses the git tags; the Android files go to satpane.com/maven).
+workflows:
+  android:
+    platform: android
+    labels: [android-sdk]
+    timeout_minutes: 30
+    working_directory: android
+    steps:
+      - name: Unit tests
+        script: chmod +x gradlew && ./gradlew :enhance:testReleaseUnitTest --no-daemon
+      - name: Build the library
+        script: ./gradlew :enhance:assembleRelease :enhance:publishReleasePublicationToSatpaneRepository --no-daemon
+      - name: Collect
+        script: |
+          cp enhance/build/outputs/aar/*.aar "$CB_ARTIFACTS_DIR/"
+          # The Maven repository files for satpane.com/maven (com/satpane/enhance/<version>/...).
+          tar -czf "$CB_ARTIFACTS_DIR/satpane-maven.tar.gz" -C enhance/build/maven-repo .
+    on:
+      push: { branches: main, paths: [android/**, bakery.yaml] }
+
+  ios:
+    platform: ios
+    xcode: latest
+    timeout_minutes: 40
+    steps:
+      - name: Planner tests
+        script: swift test 2>&1 | tail -15
+      - name: Build the SDK for devices
+        script: |
+          xcodebuild build -scheme SatpaneEnhance -destination 'generic/platform=iOS' -skipPackagePluginValidation > build.log 2>&1 || { grep -E "error:" build.log | head -30; exit 1; }
+          grep -E "BUILD SUCCEEDED" build.log
+    on:
+      push: { branches: main, paths: [ios/**, Package.swift, bakery.yaml] }
