@@ -4,13 +4,16 @@ plugins {
 }
 
 group = 'com.satpane'
-version = '0.1.1'
+version = '0.1.2'
 
 android {
   namespace "com.satpane.enhancenative"
   defaultConfig {
-    versionCode 2
-    versionName '0.1.1'
+    versionCode 3
+    versionName '0.1.2'
+    // Keeps ONNX Runtime's classes in apps that shrink their release builds (R8): its native code looks
+    // them up by name, and a renamed class aborts the app on the first model run.
+    consumerProguardFiles 'consumer-rules.pro'
   }
 }
 

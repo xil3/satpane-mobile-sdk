@@ -526,7 +526,7 @@ class SatpaneEnhancer(context: Context, val config: Config) : Closeable {
   }
 
   private companion object {
-    const val SDK_VERSION = "0.1.1"
+    const val SDK_VERSION = "0.1.2"
     const val TAG = "SatpaneEnhance"
     const val PAD = 16
     const val PREF_ENABLED = "enabled"

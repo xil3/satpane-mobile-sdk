@@ -6,7 +6,7 @@ plugins {
 
 // Published to the static Maven repository at https://satpane.com/maven as com.satpane:enhance.
 val sdkGroup = System.getenv("GROUP")?.let { g -> System.getenv("ARTIFACT")?.let { "$g.$it" } ?: g } ?: "com.satpane"
-val sdkVersion = System.getenv("VERSION") ?: "0.1.1"
+val sdkVersion = System.getenv("VERSION") ?: "0.1.2"
 group = sdkGroup
 version = sdkVersion
 

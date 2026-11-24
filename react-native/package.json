@@ -1,6 +1,6 @@
 {
   "name": "@satpane/enhance-native",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Sharper Satpane satellite imagery close up in React Native / Expo apps: AI super-resolution on the phone (Android and iOS).",
   "license": "MIT",
   "author": "xil3",
@@ -11,6 +11,7 @@
     "build",
     "src",
     "android/build.gradle",
+    "android/consumer-rules.pro",
     "android/src",
     "ios",
     "expo-module.config.json",
