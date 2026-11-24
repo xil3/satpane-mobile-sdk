@@ -33,7 +33,9 @@ const sharper = useSatpaneEnhance(satelliteShown ? { key: SATPANE_KEY } : null);
 ```
 
 `state`: `available` (offer the switch), `enabled` (the saved choice), `tileUrl` (a `file://` template;
-it changes when new tiles are written so the map redraws), `slow`, `message`, `backend`.
+it changes when new tiles are written so the map redraws), `slow`, `message`, `backend`, and on Android
+`failure`: set (with `available` false) when the model crashed the app on this phone even after a retry
+without XNNPACK, so it turned itself off rather than crash again at every launch.
 
 Docs: https://satpane.com/docs#enhance-react-native · Source: https://github.com/xil3/satpane-mobile-sdk
 (this package bundles the Android and iOS SDKs' sources). MIT.

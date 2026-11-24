@@ -1,6 +1,6 @@
 {
   "name": "@satpane/enhance-native",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Sharper Satpane satellite imagery close up in React Native / Expo apps: AI super-resolution on the phone (Android and iOS).",
   "license": "MIT",
   "author": "xil3",
@@ -22,7 +22,15 @@
     "build": "node scripts/sync-sdk.mjs && tsc -p tsconfig.json",
     "prepack": "npm run build"
   },
-  "keywords": ["satellite", "maplibre", "react-native", "expo", "super-resolution", "onnx", "satpane"],
+  "keywords": [
+    "satellite",
+    "maplibre",
+    "react-native",
+    "expo",
+    "super-resolution",
+    "onnx",
+    "satpane"
+  ],
   "peerDependencies": {
     "expo": "*",
     "react": "*",
@@ -33,5 +41,7 @@
     "@types/react": "*",
     "typescript": "^5.9.3"
   },
-  "publishConfig": { "access": "public" }
+  "publishConfig": {
+    "access": "public"
+  }
 }

@@ -35,6 +35,10 @@ export interface State {
   slow: boolean;
   /** Something to show under the switch, or null. */
   message: string | null;
+  /** Android: set when enhancement stopped working on this phone (the app crashed in ONNX Runtime, even
+   *  after a retry without XNNPACK) and turned itself off until the app ships a newer SDK: "session" or
+   *  "run". `available` is then false. */
+  failure?: string | null;
 }
 
 type Native = {
@@ -53,7 +57,7 @@ const native = requireOptionalNativeModule<Native>("SatpaneEnhance");
 /** False in builds without the native module (Expo Go, web, an app build from before it was added). */
 export const isSupported = !!native;
 
-const OFF: State = { available: false, enabled: false, tileUrl: null, backend: null, slow: false, message: null };
+const OFF: State = { available: false, enabled: false, tileUrl: null, backend: null, slow: false, message: null, failure: null };
 
 /** Starts (or reconfigures) the enhancer. Returns its current state. */
 export function configure(config: Config): State {
@@ -124,5 +128,5 @@ export function useSatpaneEnhance(config: Config | null, opts?: { onSourceTiles?
 
 function clean(s: State | null | undefined): State | null {
   if (!s) return null;
-  return { available: !!s.available, enabled: !!s.enabled, tileUrl: s.tileUrl ?? null, backend: s.backend ?? null, slow: !!s.slow, message: s.message ?? null };
+  return { available: !!s.available, enabled: !!s.enabled, tileUrl: s.tileUrl ?? null, backend: s.backend ?? null, slow: !!s.slow, message: s.message ?? null, failure: s.failure ?? null };
 }

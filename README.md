@@ -41,10 +41,10 @@ enhancement, the model and tiles are deleted.
 
 ```kotlin
 // settings.gradle.kts: maven("https://satpane.com/maven")
-// app/build.gradle.kts: implementation("com.satpane:enhance:0.1.0")
+// app/build.gradle.kts: implementation("com.satpane:enhance:0.1.1")
 
 val sharper = SatpaneEnhancer(context, SatpaneEnhancer.Config(key = "YOUR_KEY"))
-sharper.addListener { state -> /* state.available, state.enabled, state.tileUrl, state.slow, state.message */ }
+sharper.addListener { state -> /* state.available, state.enabled, state.tileUrl, state.slow, state.message, state.failure */ }
 sharper.setEnabled(true)                                  // from your switch
 sharper.onCamera(west, south, east, north, zoom, moving)  // on camera changes
 ```

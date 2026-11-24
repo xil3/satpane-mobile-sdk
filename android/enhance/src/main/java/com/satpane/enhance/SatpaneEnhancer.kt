@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import org.json.JSONObject
 import java.io.Closeable
 import java.io.File
@@ -12,6 +13,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 
 /**
  * Sharper Satpane satellite imagery close up (AI super-resolution, beta), made on the device.
@@ -24,7 +26,11 @@ import java.util.concurrent.Executors
  * imagery shows through.
  *
  * Listener callbacks arrive on the main thread. Everything else (network, model, files) runs on one
- * background thread.
+ * background thread, and nothing it does is thrown into the app.
+ *
+ * Crash guard: if the app dies while ONNX Runtime starts or runs its first tile (a native crash, which
+ * nothing can catch), the next start tries again without XNNPACK; if that dies too, enhancement turns
+ * itself off on this phone ([State.failure]) until the app ships a newer SDK.
  */
 class SatpaneEnhancer(context: Context, val config: Config) : Closeable {
 
@@ -57,6 +63,9 @@ class SatpaneEnhancer(context: Context, val config: Config) : Closeable {
     val slow: Boolean = false,
     /** Something to show under the switch (not in the plan, couldn't download), or null. */
     val message: String? = null,
+    /** Set when enhancement stopped working on this phone and turned itself off ("session": ONNX Runtime
+     *  couldn't start, "run": the model couldn't run). [available] is then false. */
+    val failure: String? = null,
   )
 
   fun interface Listener {
@@ -76,7 +85,7 @@ class SatpaneEnhancer(context: Context, val config: Config) : Closeable {
   private val lock = Any()
 
   // Guarded by lock.
-  private var state = State(enabled = prefs.getBoolean(PREF_ENABLED, false))
+  private var state = storedFailure().let { f -> State(enabled = f == null && prefs.getBoolean(PREF_ENABLED, false), failure = f) }
   private var queue = mutableListOf<Planner.Unit>()
   private var working = false
   private var lastView: Pair<Planner.Bounds, Double>? = null
@@ -91,9 +100,14 @@ class SatpaneEnhancer(context: Context, val config: Config) : Closeable {
   private var bumpPending = false
   private var written = 0
   private var closed = false
+  /** The next model run is this runner's first: guard it (see the class comment). */
+  private var firstRun = false
 
   init {
-    worker.execute { prepare() }
+    bg {
+      recoverFromCrash()
+      prepare()
+    }
   }
 
   val current: State get() = synchronized(lock) { state }
@@ -112,7 +126,7 @@ class SatpaneEnhancer(context: Context, val config: Config) : Closeable {
     prefs.edit().putBoolean(PREF_ENABLED, on).apply()
     synchronized(lock) { if (!on) queue.clear() }
     update { it.copy(enabled = on, slow = false, message = null, tileUrl = if (on) it.tileUrl else null) }
-    worker.execute {
+    bg {
       times.clear()
       prepare()
     }
@@ -121,7 +135,7 @@ class SatpaneEnhancer(context: Context, val config: Config) : Closeable {
   /** Asks Satpane again whether the key may use the model (normally every few days on its own). */
   fun refresh() {
     prefs.edit().remove(PREF_CHECK).apply()
-    worker.execute { prepare() }
+    bg { prepare() }
   }
 
   /**
@@ -150,7 +164,7 @@ class SatpaneEnhancer(context: Context, val config: Config) : Closeable {
 
   /** Deletes enhanced tiles and the downloaded source tiles (the model is kept). */
   fun clearCache() {
-    worker.execute {
+    bg {
       root.deleteRecursively()
       done.clear()
       bump()
@@ -158,7 +172,7 @@ class SatpaneEnhancer(context: Context, val config: Config) : Closeable {
   }
 
   override fun close() {
-    worker.execute {
+    bg {
       closed = true
       runner?.close()
       runner = null
@@ -168,9 +182,83 @@ class SatpaneEnhancer(context: Context, val config: Config) : Closeable {
 
   // ---- worker side ----
 
+  /** Runs [task] on the background thread. An error there is logged, never thrown into the app (an
+   *  uncaught one would end the process), and nothing runs after [close]. */
+  private fun bg(task: () -> Unit) {
+    try {
+      worker.execute {
+        try {
+          task()
+        } catch (t: Throwable) {
+          Log.e(TAG, "unexpected error", t)
+          update { it.copy(message = if (it.enabled) "Sharper satellite stopped (unexpected error)." else null) }
+        }
+      }
+    } catch (e: RejectedExecutionException) {
+      // closed
+    }
+  }
+
+  /** The app ended last time during a guarded step (a native crash): try without XNNPACK once, then
+   *  give up on this phone. */
+  private fun recoverFromCrash() {
+    val stage = prefs.getString(PREF_GUARD, null) ?: return
+    prefs.edit().remove(PREF_GUARD).commit()
+    Log.w(TAG, "the app stopped during $stage last time")
+    if (stage.endsWith("/xnnpack")) prefs.edit().putString(PREF_NO_XNNPACK, SDK_VERSION).commit()
+    else markFailed(stage.substringBefore('/'))
+  }
+
+  /** Remembers that this step can end the app (written before it runs, so a crash leaves it behind). */
+  private fun guard(stage: String) {
+    prefs.edit().putString(PREF_GUARD, stage).commit()
+  }
+
+  private fun unguard() {
+    prefs.edit().remove(PREF_GUARD).commit()
+  }
+
+  private fun storedFailure(): String? =
+    prefs.getString(PREF_FAILED, null)?.takeIf { it.startsWith("$SDK_VERSION:") }?.substringAfter(':')
+
+  /** Enhancement doesn't work on this phone: off, and no more tries with this SDK version. */
+  private fun markFailed(stage: String) {
+    Log.e(TAG, "turned off on this phone: ONNX Runtime failed at $stage")
+    prefs.edit().putString(PREF_FAILED, "$SDK_VERSION:$stage").putBoolean(PREF_ENABLED, false).commit()
+    runner?.close()
+    runner = null
+    version = null
+    synchronized(lock) { queue.clear() }
+    update { it.copy(available = false, enabled = false, tileUrl = null, backend = null, slow = false, failure = stage, message = null) }
+  }
+
+  /** ONNX Runtime with XNNPACK (unless it crashed before), else the plain CPU. */
+  private fun startRunner(file: File): Runner {
+    var xnnpack = prefs.getString(PREF_NO_XNNPACK, null) != SDK_VERSION
+    while (true) {
+      val stage = "session/" + if (xnnpack) "xnnpack" else "cpu"
+      guard(stage)
+      try {
+        return Runner(file, xnnpack).also { firstRun = true }
+      } catch (t: Throwable) {
+        Log.e(TAG, "ONNX Runtime couldn't start ($stage)", t)
+        if (!xnnpack) throw t
+        prefs.edit().putString(PREF_NO_XNNPACK, SDK_VERSION).commit()
+        xnnpack = false
+      } finally {
+        unguard()
+      }
+    }
+  }
+
   /** Checks the plan, downloads and loads the model when on. */
   private fun prepare() {
     if (closed) return
+    storedFailure()?.let { f ->
+      if (prefs.getBoolean(PREF_ENABLED, false)) prefs.edit().putBoolean(PREF_ENABLED, false).apply()
+      update { it.copy(available = false, enabled = false, tileUrl = null, backend = null, failure = f) }
+      return
+    }
     val check = try {
       modelCheck()
     } catch (e: Exception) {
@@ -191,20 +279,30 @@ class SatpaneEnhancer(context: Context, val config: Config) : Closeable {
     }
     update { it.copy(available = true) }
     if (!current.enabled) return
-    try {
-      if (runner == null || version != check.version) {
-        val file = modelFile(check.url!!, check.version!!)
-        runner?.close()
-        runner = Runner(file)
-        version = check.version
-        done.clear()
-      }
-      update { it.copy(backend = runner?.backend, message = null, tileUrl = tileUrl()) }
-      synchronized(lock) { planLocked() }
-      work()
+    val file = try {
+      if (runner != null && version == check.version) null else modelFile(check.url!!, check.version!!)
     } catch (e: Exception) {
       update { it.copy(message = "Sharper satellite couldn't start (check your signal).") }
+      return
     }
+    if (file != null) {
+      runner?.close()
+      runner = null
+      version = null
+      try {
+        runner = startRunner(file)
+      } catch (t: Throwable) {
+        // Caught (unlike a native crash): maybe a damaged download, so fetch the model again next time.
+        file.delete()
+        update { it.copy(message = "Sharper satellite couldn't start on this phone.") }
+        return
+      }
+      version = check.version
+      done.clear()
+    }
+    update { it.copy(backend = runner?.backend, message = null, tileUrl = tileUrl()) }
+    synchronized(lock) { planLocked() }
+    work()
   }
 
   private fun planLocked() {
@@ -218,7 +316,10 @@ class SatpaneEnhancer(context: Context, val config: Config) : Closeable {
     val start = synchronized(lock) {
       if (working || queue.isEmpty() || !state.enabled || !state.available) false else { working = true; true }
     }
-    if (start) worker.execute { try { work() } finally { synchronized(lock) { working = false } } }
+    if (start) {
+      bg { try { work() } finally { synchronized(lock) { working = false } } }
+      if (worker.isShutdown) synchronized(lock) { working = false }
+    }
   }
 
   private fun work() {
@@ -242,7 +343,14 @@ class SatpaneEnhancer(context: Context, val config: Config) : Closeable {
           continue
         }
         val t0 = System.nanoTime()
-        r.enhance(tiles, (u.x % 2) * 256, (u.y % 2) * 256, 256, PAD, outs)
+        val guarded = firstRun
+        if (guarded) guard("run/${r.backend}")
+        try {
+          r.enhance(tiles, (u.x % 2) * 256, (u.y % 2) * 256, 256, PAD, outs)
+        } finally {
+          if (guarded) unguard()
+        }
+        firstRun = false
         done += key
         written++
         noteTime((System.nanoTime() - t0) / 1_000_000 / outs.size)
@@ -251,7 +359,13 @@ class SatpaneEnhancer(context: Context, val config: Config) : Closeable {
       } catch (e: IOException) {
         return // no signal: the next camera change tries again
       } catch (e: Exception) {
+        Log.w(TAG, "tile ${u.x}/${u.y} skipped", e)
         done += key // an odd tile: skip it
+      } catch (t: Throwable) {
+        // Out of memory or a native library error: stop on this phone rather than risk the app.
+        Log.e(TAG, "model run failed", t)
+        markFailed("run")
+        return
       }
     }
   }
@@ -267,7 +381,7 @@ class SatpaneEnhancer(context: Context, val config: Config) : Closeable {
     if (bumpPending) return
     bumpPending = true
     main.postDelayed({
-      worker.execute {
+      bg {
         bumpPending = false
         gen++
         if (version != null) update { it.copy(tileUrl = if (it.enabled && it.available) tileUrl() else null) }
@@ -412,9 +526,14 @@ class SatpaneEnhancer(context: Context, val config: Config) : Closeable {
   }
 
   private companion object {
+    const val SDK_VERSION = "0.1.1"
+    const val TAG = "SatpaneEnhance"
     const val PAD = 16
     const val PREF_ENABLED = "enabled"
     const val PREF_CHECK = "check"
+    const val PREF_GUARD = "guard"
+    const val PREF_NO_XNNPACK = "noXnnpack"
+    const val PREF_FAILED = "failed"
     const val DAY_MS = 86_400_000L
     const val NO_RECHECK_MS = 6 * 3_600_000L
     const val OFFLINE_GRACE_DAYS = 14

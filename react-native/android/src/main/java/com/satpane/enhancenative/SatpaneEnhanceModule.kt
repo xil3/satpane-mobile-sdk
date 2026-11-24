@@ -71,4 +71,5 @@ private fun SatpaneEnhancer.State.toMap(): Map<String, Any?> = mapOf(
   "backend" to backend,
   "slow" to slow,
   "message" to message,
+  "failure" to failure,
 )

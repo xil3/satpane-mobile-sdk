@@ -15,8 +15,9 @@ import kotlin.math.min
 internal const val TILE = 512
 internal const val SCALE = 4
 
-/** Runs the x4 model (ONNX Runtime, XNNPACK on the CPU when available) on one region of a zoom-13 tile. */
-internal class Runner(modelFile: File) : Closeable {
+/** Runs the x4 model (ONNX Runtime; XNNPACK on the CPU when [xnnpack] and available) on one region of a
+ *  zoom-13 tile. */
+internal class Runner(modelFile: File, xnnpack: Boolean) : Closeable {
   private val env: OrtEnvironment = OrtEnvironment.getEnvironment()
   private val session: OrtSession
   val backend: String
@@ -24,10 +25,10 @@ internal class Runner(modelFile: File) : Closeable {
   init {
     val opts = OrtSession.SessionOptions()
     opts.setIntraOpNumThreads(max(1, min(4, Runtime.getRuntime().availableProcessors() - 1)))
-    backend = try {
+    backend = if (!xnnpack) "cpu" else try {
       opts.addXnnpack(mapOf("intra_op_num_threads" to "4"))
       "xnnpack"
-    } catch (e: Exception) {
+    } catch (e: Throwable) {
       "cpu"
     }
     session = env.createSession(modelFile.absolutePath, opts)
